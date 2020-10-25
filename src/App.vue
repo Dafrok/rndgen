@@ -1,0 +1,283 @@
+<template>
+  <form class="section" @submit.prevent="generate">
+    <div class="container">
+      <h1 class="title has-text-centered">可控平均值随机数集生成器</h1>
+      <div class="panel is-link">
+        <p class="panel-heading">生成参数</p>
+        <div class="panel-block">
+          <div class="container">
+            <div class="columns">
+              <div class="column">
+                <div class="field">
+                  <label class="label">最大值</label>
+                  <div class="control">
+                    <input
+                      class="input"
+                      v-model.number="inputMax"
+                      type="number"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div class="column">
+                <div class="field">
+                  <label class="label">最小值</label>
+                  <div class="control">
+                    <input
+                      class="input"
+                      v-model.number="inputMin"
+                      type="number"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div class="column">
+                <div class="field">
+                  <label class="label">平均值</label>
+                  <div class="control">
+                    <input
+                      class="input"
+                      v-model.number="average"
+                      type="number"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="columns">
+              <div class="column">
+                <div class="field">
+                  <label class="label">平均值偏差</label>
+                  <div class="control">
+                    <input
+                      class="input"
+                      v-model.number="offset"
+                      type="number"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div class="column">
+                <div class="field">
+                  <label class="label">生成数量</label>
+                  <div class="control">
+                    <input
+                      class="input"
+                      v-model.number="amount"
+                      type="number"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div class="column">
+                <div class="field">
+                  <label class="label"> 离散度 </label>
+                  <div class="control">
+                    <input
+                      class="input"
+                      :class="
+                        contraction >= 100 || contraction <= 0
+                          ? 'is-danger'
+                          : ''
+                      "
+                      type="number"
+                      max="100"
+                      min="0"
+                      v-model.number="contraction"
+                    />
+                  </div>
+                  <p class="help">定义域 (0, 100)，离散度越高计算越快</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="control">
+                <button class="button is-link is-outlined is-fullwidth">
+                  生成
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+  <section class="section">
+    <div class="container">
+      <div class="panel is-link">
+        <p class="panel-heading">生成结果</p>
+        <div class="panel-block">
+          <div class="container">
+            <div class="columns">
+              <div class="column">
+                <label class="label">平均值</label> {{ resultAverage }}
+              </div>
+              <div class="column">
+                <label class="label">最大值</label> {{ resultMax }}
+              </div>
+              <div class="column">
+                <label class="label">最小值</label> {{ resultMin }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel-block">
+          <textarea class="textarea" readonly v-model="resultStr"></textarea>
+        </div>
+        <div class="panel-block">
+          <chart :data="result" :max="max" :min="min" />
+        </div>
+        <div class="panel-block">
+          <button
+            :disabled="!result.length"
+            class="button is-link is-outlined is-fullwidth"
+            @click="clip"
+          >
+            {{ copySuccess ? "复制成功！" : "复制到剪贴板" }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script>
+import clipIt from 'clip-it'
+import Chart from './Chart.vue'
+
+function summary(ary) {
+  return ary.reduce((sum, item) => sum + item, 0)
+}
+
+function check(ary, offset) {
+  const avg = summary(ary) / ary.length
+  return avg > offset || avg < -offset
+}
+
+function getOffsetRange({ max, min, average, offset }) {
+  const maxLimit = Math.min(max, average + offset)
+  const minLimit = Math.max(min, average - offset)
+  const offsetMax = maxLimit - average
+  const offsetMin = minLimit - average
+  return [offsetMin, offsetMax]
+}
+
+function generateData(
+  ary,
+  { minOffset, maxOffset, offset, amount, contraction }
+) {
+  let flag = true
+  if (check(ary, offset)) {
+    for (let i = 0; i < amount; i++) {
+      const curAvg = summary(ary) / ary.length
+      if ((curAvg > offset && ary[i] > 0) || (curAvg < offset && ary[i] < 0)) {
+        ary[i] = (ary[i] * (100 - contraction)) / 100
+      } else if (curAvg > offset) {
+        ary[i] = ary[i] - ((maxOffset - curAvg) * (100 - contraction)) / 100
+      } else if (curAvg < offset) {
+        ary[i] = ary[i] - ((minOffset - curAvg) * (100 - contraction)) / 100
+      }
+      if (!check(ary, offset)) {
+        flag = false
+        break
+      }
+    }
+  } else {
+    flag = false
+  }
+  if (flag) {
+    return generateData(ary, {
+      minOffset,
+      maxOffset,
+      offset,
+      amount,
+      contraction,
+    })
+  }
+  return ary
+}
+
+function initData({ max, min, average, amount }) {
+  const offsetMax = max - average
+  const offsetMin = min - average
+  const offsets = []
+  for (let i = 0; i < amount; i++) {
+    offsets.push(Math.random() * (offsetMax - offsetMin) + offsetMin)
+  }
+  return offsets
+}
+
+export default {
+  name: 'App',
+  data() {
+    return {
+      max: 0,
+      min: 0,
+      inputMax: 100,
+      inputMin: 50,
+      average: 65,
+      offset: 10,
+      amount: 500,
+      contraction: 75,
+      result: [],
+      copySuccess: false,
+    }
+  },
+  components: {
+    chart: Chart,
+  },
+  computed: {
+    resultAverage() {
+      const ary = this.result
+      return ary.length
+        ? ary.reduce((num, item) => num + item, 0) / ary.length
+        : 0
+    },
+    resultMax() {
+      const ary = this.result
+      return ary.length ? ary.reduce((a, b) => Math.max(a, b)) : 0
+    },
+    resultMin() {
+      const ary = this.result
+      return ary.length ? ary.reduce((a, b) => Math.min(a, b)) : 0
+    },
+    resultStr() {
+      return this.result.join(',')
+    },
+  },
+  methods: {
+    clip() {
+      const flag = clipIt(this.result)
+      if (flag) {
+        this.copySuccess = true
+        setTimeout(() => {
+          this.copySuccess = false
+        }, 2e3)
+      }
+    },
+    generate() {
+      console.clear()
+      const { inputMax, inputMin, average, offset, amount, contraction } = this
+      this.max = inputMax
+      this.min = inputMin
+      const { max, min } = this
+      const ary = initData({ max, min, average, amount })
+      const [minOffset, maxOffset] = getOffsetRange({
+        max,
+        min,
+        average,
+        offset,
+      })
+      const result = generateData(ary, {
+        minOffset,
+        maxOffset,
+        offset,
+        amount,
+        contraction,
+      })
+      this.result = result.map((offset) => parseInt(average + offset, 10))
+    },
+  },
+}
+</script>
