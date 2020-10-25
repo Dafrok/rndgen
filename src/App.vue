@@ -93,8 +93,8 @@
 
             <div class="field">
               <div class="control">
-                <button class="button is-link is-outlined is-fullwidth">
-                  生成
+                <button class="button is-link is-outlined is-fullwidth" :disabled="generating">
+                  生成{{generating ? '中...' : ''}}
                 </button>
               </div>
             </div>
@@ -123,7 +123,26 @@
           </div>
         </div>
         <div class="panel-block">
+          <div class="container">
           <textarea class="textarea" readonly v-model="resultStr"></textarea>
+          </div>
+        </div>
+        <div class="panel-block">
+          <div class="container">
+          <nav class="pagination is-rounded is-fullwidth is-small" role="navigation" aria-label="pagination">
+            <a class="pagination-previous" @click="toPrevPage">上一页</a>
+            <a class="pagination-next" @click="toNextPage">下一页</a>
+            <ul class="pagination-list">
+              <li v-if="page > 0"><a class="pagination-link" @click="toPage(0)">1</a></li>
+              <li v-if="page > 2"><span class="pagination-ellipsis">&hellip;</span></li>
+              <li v-if="page > 1"><a class="pagination-link" @click="toPage(page - 1)">{{page}}</a></li>
+              <li><a class="pagination-link is-current" aria-current="page">{{page + 1}}</a></li>
+              <li v-if="page < result.length / 250 - 2"><a class="pagination-link" @click="toPage(page + 1)">{{page + 2}}</a></li>
+              <li v-if="page < result.length / 250 - 3"><span class="pagination-ellipsis">&hellip;</span></li>
+              <li v-if="page < result.length / 250 - 1"><a class="pagination-link" @click="toPage(result.length / 250 - 1)">{{result.length / 250}}</a></li>
+            </ul>
+          </nav>
+          </div>
         </div>
         <div class="panel-block">
           <chart :data="result" :max="max" :min="min" />
@@ -161,6 +180,8 @@ export default {
       contraction: 75,
       result: [],
       copySuccess: false,
+      generating: false,
+      page: 0
     }
   },
   components: {
@@ -182,7 +203,8 @@ export default {
       return ary.length ? ary.reduce((a, b) => Math.min(a, b)) : 0
     },
     resultStr() {
-      return this.result.join(',')
+      const {page} = this
+      return this.result.slice(page * 250, (page + 1) * 250).join(',')
     },
   },
   methods: {
@@ -195,8 +217,23 @@ export default {
         }, 2e3)
       }
     },
+    toNextPage() {
+      if (this.page < (this.result.length / 250 - 1)) {
+        this.page++
+      }
+    },
+    toPrevPage() {
+      if (this.page > 0) {
+        this.page--
+      }
+    },
+    toPage(n) {
+      this.page = n
+    },
     async generate() {
-      this.result = [];
+      this.page = 0
+      this.generating = true
+      this.result = []
       const { inputMax, inputMin, average, offset, amount, contraction } = this
       this.max = inputMax
       this.min = inputMin
@@ -224,6 +261,7 @@ export default {
         contraction,
       })
       this.result = result.map((offset) => parseInt(average + offset, 10))
+      this.generating = false
     },
   },
 }

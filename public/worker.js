@@ -71,13 +71,14 @@ self.addEventListener('message', function (e) {
       average,
       offset,
     })
-    const result = generateData(ary, {
+    const data = generateData(ary, {
       minOffset,
       maxOffset,
       offset,
       amount,
       contraction,
     })
-    self.postMessage(result);
+    self.postMessage({method, data});
   }
+  self.close();
 }, false)

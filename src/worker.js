@@ -1,12 +1,14 @@
-const worker = new Worker('worker.js')
-
 export function generate(options) {
   return new Promise(resolve => {
+    const worker = new Worker('worker.js')
     worker.onmessage = function (e) {
-      resolve(e.data)
-      worker.onmessage = null
+      const {data, method} = e.data;
+      if (method === 'generate') {
+        resolve(data)
+      }
+      console.log('ter')
+      worker.terminate()
     }
     worker.postMessage({method: 'generate', options})
   })
 }
-
