@@ -5,19 +5,12 @@ name: Node.js CI
 
 on:
   push:
-    branches: [ main ]
-#   pull_request:
-#     branches: [ main ]
+    branches:
+      - main
 
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [12.x, 14.x]
-
+  deploy:
+    runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
 
@@ -36,9 +29,3 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
